@@ -1,0 +1,33 @@
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Node / PNPM
+node_modules/
+.pnpm-store/
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python local tooling
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.skills-ref-requirements.sha256
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Build / cache output
+dist/
+build/
+coverage/
+.cache/
+tmp/
+temp/

@@ -1,0 +1,17 @@
+{
+  "name": "logs-skills",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "format": "prettier . --write --ignore-unknown",
+    "format:check": "prettier . --check --ignore-unknown",
+    "setup:skills-ref": "node ./scripts/setup-skills-ref.mjs",
+    "tokens:skills": "node ./scripts/count-skill-tokens.mjs",
+    "validate:skills": "node ./scripts/validate-skills-ref.mjs && pnpm tokens:skills",
+    "check": "pnpm setup:skills-ref && pnpm format:check && pnpm validate:skills"
+  },
+  "devDependencies": {
+    "prettier": "^3.8.3",
+    "tokenx": "^1.3.0"
+  }
+}

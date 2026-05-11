@@ -1,0 +1,8 @@
+interface:
+  display_name: "Sentry Logs JS Console Migration"
+  short_description: "Migrate JS/TS console logging to Sentry Logs with boundary maps, scoped context, wide events, redaction, and ESLint enforcement."
+  brand_color: "#8B5CF6"
+  default_prompt: "Audit console and legacy logger usage by operation. Map execution flow and boundaries before edits, modify only logging-related code, move stable context to Sentry scopes, collapse narrative logs into one boundary-owned wide Sentry.logger event, redact with beforeSendLog, and avoid timing attributes, duplicate failure logs, warning logs for expected outcomes, and 1:1 replacements unless the signal stands alone."
+
+policy:
+  allow_implicit_invocation: true

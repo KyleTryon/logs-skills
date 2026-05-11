@@ -1,0 +1,5 @@
+click==8.3.3
+python-dateutil==2.9.0.post0
+six==1.17.0
+skills-ref @ git+https://github.com/agentskills/agentskills.git@2d3e01f590f68bee2cb76a3200823e93b2cc9eaa#subdirectory=skills-ref
+strictyaml==1.7.3
