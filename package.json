@@ -6,9 +6,10 @@
     "format": "prettier . --write --ignore-unknown",
     "format:check": "prettier . --check --ignore-unknown",
     "setup:skills-ref": "node ./scripts/setup-skills-ref.mjs",
+    "test:sentry-structured-logs-plugin": "node ./scripts/test-sentry-structured-logs-plugin.mjs",
     "tokens:skills": "node ./scripts/count-skill-tokens.mjs",
     "validate:skills": "node ./scripts/validate-skills-ref.mjs && pnpm tokens:skills",
-    "check": "pnpm setup:skills-ref && pnpm format:check && pnpm validate:skills"
+    "check": "pnpm setup:skills-ref && pnpm test:sentry-structured-logs-plugin && pnpm format:check && pnpm validate:skills"
   },
   "devDependencies": {
     "prettier": "^3.8.3",

@@ -6,7 +6,10 @@ sensitive keys.
 
 Accumulated objects like `logAttributes` are allowed by default to match the
 wide-event migration pattern. Inline literals are fully checked; non-inline
-objects still need review because this plugin is not type-aware.
+objects still need review because this plugin is not type-aware. Set
+`allowUnknownAttributeValues: false` on the shape rule when you want to reject
+unknown expressions and allow only statically verifiable scalar attribute
+values.
 
 ## Asset
 
@@ -35,11 +38,16 @@ Rule IDs:
 ```javascript
 import sentryStructuredLogs from "./eslint/sentry-structured-logs-plugin.mjs";
 
-const loggerRuleOptions = {
+const loggerMatcherOptions = {
   allowedLoggerObjects: ["Sentry.logger"],
   allowedLoggerIdentifiers: [],
   allowDynamicLevelMethods: true,
+};
+
+const attributeShapeOptions = {
+  ...loggerMatcherOptions,
   requireInlineAttributes: false,
+  allowUnknownAttributeValues: true,
 };
 
 export default [
@@ -50,15 +58,15 @@ export default [
       "no-console": "error",
       "sentry-structured-logs/require-message-and-flat-attrs": [
         "warn",
-        loggerRuleOptions,
+        attributeShapeOptions,
       ],
       "sentry-structured-logs/no-reserved-attr-keys": [
         "error",
-        loggerRuleOptions,
+        loggerMatcherOptions,
       ],
       "sentry-structured-logs/no-sensitive-attr-keys": [
         "error",
-        loggerRuleOptions,
+        loggerMatcherOptions,
       ],
     },
   },
@@ -68,6 +76,10 @@ export default [
 For wrapper-friendly mode, add approved identifiers/objects, for example
 `allowedLoggerIdentifiers: ["logger", "appLogger"]` or
 `allowedLoggerObjects: ["Sentry.logger", "Telemetry.logger"]`.
+
+`requireInlineAttributes` and `allowUnknownAttributeValues` only apply to
+`require-message-and-flat-attrs`; the reserved and sensitive key rules share
+only the logger matcher options.
 
 Rollout: start `require-message-and-flat-attrs` at `warn`; keep reserved and
 sensitive key rules at `error`; promote all rules when conventions stabilize.
