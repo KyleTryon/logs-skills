@@ -47,8 +47,8 @@ Assets:
   timing data.
 - Map flow/boundaries before edits. Migrate by operation, route, job, command,
   or user action, not by statement.
-- Prefer one wide log per operation: build context with scope attributes, then
-  put only operation-result facts inline on the log event.
+- Prefer one wide log per operation: reusable context on scope attributes,
+  one-event facts as inline log attributes.
 - Only modify logging-related code: logger calls, Sentry log/scope attributes,
   redaction, temporary bridges, and scoped lint rules. Do not touch styling,
   unrelated refactors, or pre-existing bugs.
@@ -119,10 +119,9 @@ each migrated log.
 For the context ownership model and framework-specific placement rules, read the
 execution-flow reference.
 
-## Scope Attribute Placement
+## Attribute Placement
 
-Scope attributes are the context-building layer. When Sentry captures a log or
-error, active scope data is merged into the event.
+When Sentry captures a log or error, active scope data is merged into the event.
 
 - Global scope: app-wide constants set at startup, such as `service`, release,
   runtime, or deployment environment.
@@ -134,26 +133,11 @@ error, active scope data is merged into the event.
   `result.status`, `order.id`, `retry_count`, or `error.kind`.
 
 Prefer top-level `Sentry.setXXX(...)` helpers or
-`Sentry.getIsolationScope().setAttributes(...)` for request/page/job context.
-Avoid `Sentry.getCurrentScope()` for new context; use `withScope` when the
-context should apply only inside a callback.
-
-```javascript
-Sentry.getGlobalScope().setAttributes({
-  service: "checkout",
-  version: "2.1.0",
-});
-
-Sentry.getIsolationScope().setAttributes({
-  org_id: user.orgId,
-  user_tier: user.tier,
-});
-
-Sentry.withScope((scope) => {
-  scope.setAttribute("operation.step", "payment");
-  Sentry.logger.info("Processing order");
-});
-```
+`Sentry.getIsolationScope().setAttributes(...)` for request/page/job context. In
+browsers, isolation scope is effectively global, so use it only for stable
+page/user context and prefer `withScope` for action-only context. Avoid
+`Sentry.getCurrentScope()` for new context; use `withScope` when context should
+apply only inside a callback.
 
 ## Wide-Event Ownership
 
@@ -197,18 +181,12 @@ replace `console.log("x")` with `Sentry.logger.info("x")`. Design the operation
 event:
 
 1. Move broad route/job/user context onto scope.
-2. Move branch/dependency context onto a nested `withScope` when only part of
-   the operation should inherit it.
-3. Emit one final completion/failure log at the response/job boundary with an
-   inline flat attributes object.
+2. Use `withScope` for branch/dependency context inherited by only part of the
+   operation.
+3. Emit one final completion/failure log with inline flat attributes.
 4. Keep separate warn/error logs only when they are standalone signals.
 
 ```javascript
-Sentry.getGlobalScope().setAttributes({
-  service: "checkout",
-  version: "2.1.0",
-});
-
 Sentry.setUser({ id: user.id });
 Sentry.getIsolationScope().setAttributes({
   "route.name": "checkout.create",
@@ -279,8 +257,9 @@ governed JS/TS, or unrelated rule changes.
    and commented.
 
 Use `no-console` plus structured-log rules as CI truth. Keep local scripts
-aligned with CI. The policy covers message text, flat scalar attributes where
-static, reserved prefixes, and sensitive keys.
+aligned with CI. The local plugin covers logger call message text, inline
+attribute shape, reserved prefixes, and sensitive keys; scope attributes need
+the same review/redaction policy.
 
 Final checks:
 

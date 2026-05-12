@@ -4,12 +4,11 @@ The bundled plugin asset checks required message text, inline attribute objects
 for dotted `snake_case` keys and obvious non-scalars, reserved prefixes, and
 sensitive keys.
 
-Attribute objects must be inline at the logger call so lint can validate keys
-and values at the callsite. Build reusable context with Sentry scope attributes,
-then keep the logger call's inline object for facts specific to that one emitted
-log. Set `allowUnknownAttributeValues: false` on the shape rule when you want to
-reject unknown expressions and allow only statically verifiable scalar attribute
-values.
+The shape rule requires inline log attributes. Put reusable context on Sentry
+scopes, and keep the logger call's inline object for one-event facts. Set
+`allowUnknownAttributeValues: false` when you want to reject unknown expressions
+and allow only statically verifiable scalar attribute values. These rules
+validate logger calls, not scope attribute setters.
 
 ## Asset
 

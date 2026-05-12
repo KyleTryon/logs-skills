@@ -24,8 +24,8 @@ requires adding scope setup before existing leaf logs. Deeper code should add
 only narrower facts. Do not invent route, tenant, or user context in shared
 helpers.
 
-Do not build mutable attribute objects for `Sentry.logger` calls. A log becomes
-wide from active scope attributes plus the logger call's inline attributes.
+Wide logs are scope attributes + inline logger attributes; do not build mutable
+`Sentry.logger` attribute objects.
 
 ## Runtime Surfaces
 
@@ -72,9 +72,9 @@ Leaf logs:
   services inherit context; emit the final wide log at response
   completion/failure.
 - React Router / Remix / SPA: map root route -> loader/action/component event ->
-  service calls. Set browser-side route/user attributes on navigation or action
-  boundaries that emit client logs; server loaders/actions need their own server
-  scope.
+  service calls. Browser isolation scope is effectively global, so keep it to
+  stable page/user context; use `withScope` for action-only context. Server
+  loaders/actions need their own server scope.
 - tRPC / RPC routers: treat each procedure as the operation boundary after
   context/auth creation. Put tenant/user tier/procedure name on isolation scope
   in middleware or the procedure wrapper, not in leaf resolvers.
