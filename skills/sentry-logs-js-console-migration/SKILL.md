@@ -47,13 +47,15 @@ Assets:
   timing data.
 - Map flow/boundaries before edits. Migrate by operation, route, job, command,
   or user action, not by statement.
-- Prefer one wide log per operation: stable dimensions on scope,
-  operation-specific facts on the event.
+- Prefer one wide log per operation: build context with scope attributes, then
+  put only operation-result facts inline on the log event.
 - Only modify logging-related code: logger calls, Sentry log/scope attributes,
   redaction, temporary bridges, and scoped lint rules. Do not touch styling,
   unrelated refactors, or pre-existing bugs.
-- Attributes are flat scalar (`string | number | boolean`) dotted keys; never
-  set `sentry.*`, `browser.*`, `server.*`, or `user.*`.
+- Log attributes must be inline object literals. Build reusable context on
+  Sentry scopes, not in mutable `logAttributes` objects.
+- Scope and log attributes are flat scalar (`string | number | boolean`) dotted
+  keys; never set `sentry.*`, `browser.*`, `server.*`, or `user.*`.
 - Use `beforeSendLog` for production drops/redaction. Never log raw tokens,
   passwords, cookies, authorization headers, or secrets.
 - Bridges are temporary; remove them after call sites move to `Sentry.logger`.
@@ -109,13 +111,49 @@ by file/rule/action.
 
 Complete the boundary map before migrating an operation bundle; update it only
 if implementation changes scope placement or wide-event ownership. Before edits,
-decide what belongs on global scope, isolation scope, nested `withScope`, the
-wide-event payload, or deletion. Each operation needs a named wide event, a
-boundary where broad context is set before downstream logs/errors, and a flow
-path to each migrated log.
+decide what belongs on global scope, isolation scope, nested `withScope`, inline
+log attributes, or deletion. Each operation needs a named wide event, a boundary
+where broad context is set before downstream logs/errors, and a flow path to
+each migrated log.
 
 For the context ownership model and framework-specific placement rules, read the
 execution-flow reference.
+
+## Scope Attribute Placement
+
+Scope attributes are the context-building layer. When Sentry captures a log or
+error, active scope data is merged into the event.
+
+- Global scope: app-wide constants set at startup, such as `service`, release,
+  runtime, or deployment environment.
+- Isolation scope: request/process/page/job context, such as route, procedure,
+  job name, tenant/org id, user tier, and `Sentry.setUser(...)`.
+- Current scope: narrow branch, dependency, or single-operation context created
+  with `Sentry.withScope((scope) => { ... })`.
+- Inline log attributes: facts specific to that one emitted log, such as
+  `result.status`, `order.id`, `retry_count`, or `error.kind`.
+
+Prefer top-level `Sentry.setXXX(...)` helpers or
+`Sentry.getIsolationScope().setAttributes(...)` for request/page/job context.
+Avoid `Sentry.getCurrentScope()` for new context; use `withScope` when the
+context should apply only inside a callback.
+
+```javascript
+Sentry.getGlobalScope().setAttributes({
+  service: "checkout",
+  version: "2.1.0",
+});
+
+Sentry.getIsolationScope().setAttributes({
+  org_id: user.orgId,
+  user_tier: user.tier,
+});
+
+Sentry.withScope((scope) => {
+  scope.setAttribute("operation.step", "payment");
+  Sentry.logger.info("Processing order");
+});
+```
 
 ## Wide-Event Ownership
 
@@ -140,7 +178,8 @@ attention.
 Classify each log relative to its operation bundle:
 
 - broad context -> `move_to_scope`
-- larger-operation step -> `merge_into_wide`
+- larger-operation step -> `merge_into_wide` by moving reusable context to scope
+  or preserving a local value for the final inline log attributes
 - independently searchable signal -> `keep`
 - security-sensitive -> strip via `beforeSendLog`
 - otherwise/noise -> `delete` or `trace`/`debug` if valuable and dropped in prod
@@ -158,37 +197,44 @@ replace `console.log("x")` with `Sentry.logger.info("x")`. Design the operation
 event:
 
 1. Move broad route/job/user context onto scope.
-2. Accumulate variable facts in a flat `logAttributes` object.
-3. Emit one final completion/failure log at the response/job boundary.
+2. Move branch/dependency context onto a nested `withScope` when only part of
+   the operation should inherit it.
+3. Emit one final completion/failure log at the response/job boundary with an
+   inline flat attributes object.
 4. Keep separate warn/error logs only when they are standalone signals.
 
 ```javascript
+Sentry.getGlobalScope().setAttributes({
+  service: "checkout",
+  version: "2.1.0",
+});
+
 Sentry.setUser({ id: user.id });
 Sentry.getIsolationScope().setAttributes({
   "route.name": "checkout.create",
   org_id: user.orgId,
   user_tier: user.tier,
+  "cart.item_count": cart.items.length,
+  "payment.method": "stripe",
 });
 
-const logAttributes = {
-  "cart.item_count": cart.items.length,
-  payment_method: "stripe",
-};
-
 const order = await chargeCard(cart);
-logAttributes["order.id"] = order.id;
 
-Sentry.logger.info("Checkout completed", logAttributes);
+Sentry.logger.info("Checkout completed", {
+  "order.id": order.id,
+  "result.status": "completed",
+});
 ```
 
 ### Duplicate-Failure Guard
 
 A failure path emits at most one log event per operation/dependency failure. Let
 the catch block be the single failure logger, or log before throwing only when
-no later catch logs it. Wrap/rethrow with extra data and merge facts into the
-boundary failure log. Trace every `throw` after `Sentry.logger.error(...)`.
+no later catch logs it. Wrap/rethrow with extra data and preserve facts for the
+boundary failure log's scope or inline attributes. Trace every `throw` after
+`Sentry.logger.error(...)`.
 
-Attribute naming:
+Scope/log attribute naming:
 
 - quote dotted keys (`{ "order.id": order.id }`)
 - use `snake_case` leaves and predictable prefixes (`order.*`, `cart.*`,

@@ -254,7 +254,7 @@ function requireMessageAndFlatAttrs(context, node, options = {}) {
 
   const entries = collectAttrsEntries(attrsArg, context, {
     reportMalformedProperties: true,
-    reportNonLiteral: options.requireInlineAttributes === true,
+    reportNonLiteral: true,
   });
   if (!entries) return;
 
@@ -359,7 +359,6 @@ export default {
       messages: REQUIRE_MESSAGE_AND_FLAT_ATTRS_MESSAGES,
       optionSchemaProperties: {
         allowUnknownAttributeValues: { type: "boolean" },
-        requireInlineAttributes: { type: "boolean" },
       },
     }),
     "no-reserved-attr-keys": createRule(noReservedAttrKeys, {

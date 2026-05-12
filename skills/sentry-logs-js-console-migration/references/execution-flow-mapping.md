@@ -24,6 +24,9 @@ requires adding scope setup before existing leaf logs. Deeper code should add
 only narrower facts. Do not invent route, tenant, or user context in shared
 helpers.
 
+Do not build mutable attribute objects for `Sentry.logger` calls. A log becomes
+wide from active scope attributes plus the logger call's inline attributes.
+
 ## Runtime Surfaces
 
 ```mermaid
@@ -99,7 +102,8 @@ Nested scope: payment.provider inside payments.charge
 Wide event: "Checkout completed" at route finally
 Leaf logs:
 - payments.ts:42 "stripe retry" -> keep as warn with payment scope if alerted
-- cart.ts:18 "loaded cart" -> merge_into_wide as cart.item_count/cart.value_cents
+- cart.ts:18 "loaded cart" -> merge_into_wide via scope or final inline attrs
+  as cart.item_count/cart.value_cents
 - route.ts:31 "checkout hit" -> move_to_scope
 ```
 

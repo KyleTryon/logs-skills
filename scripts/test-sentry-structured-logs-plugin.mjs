@@ -98,7 +98,6 @@ assert.deepEqual(
     "allowUnknownAttributeValues",
     "allowedLoggerIdentifiers",
     "allowedLoggerObjects",
-    "requireInlineAttributes",
   ],
 );
 assert.deepEqual(Object.keys(noReservedAttrKeys.meta.schema[0].properties), [
@@ -179,7 +178,7 @@ assertReports(
 assertReports(
   requireMessageAndFlatAttrs,
   loggerCall(identifier("info"), [literal("ready"), identifier("logAttrs")]),
-  { requireInlineAttributes: true },
+  {},
   ["nonInlineAttributes"],
 );
 assertReports(

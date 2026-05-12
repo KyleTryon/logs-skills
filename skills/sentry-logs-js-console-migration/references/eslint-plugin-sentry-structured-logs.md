@@ -4,11 +4,11 @@ The bundled plugin asset checks required message text, inline attribute objects
 for dotted `snake_case` keys and obvious non-scalars, reserved prefixes, and
 sensitive keys.
 
-Accumulated objects like `logAttributes` are allowed by default to match the
-wide-event migration pattern. Inline literals are fully checked; non-inline
-objects still need review because this plugin is not type-aware. Set
-`allowUnknownAttributeValues: false` on the shape rule when you want to reject
-unknown expressions and allow only statically verifiable scalar attribute
+Attribute objects must be inline at the logger call so lint can validate keys
+and values at the callsite. Build reusable context with Sentry scope attributes,
+then keep the logger call's inline object for facts specific to that one emitted
+log. Set `allowUnknownAttributeValues: false` on the shape rule when you want to
+reject unknown expressions and allow only statically verifiable scalar attribute
 values.
 
 ## Asset
@@ -46,7 +46,6 @@ const loggerMatcherOptions = {
 
 const attributeShapeOptions = {
   ...loggerMatcherOptions,
-  requireInlineAttributes: false,
   allowUnknownAttributeValues: true,
 };
 
@@ -77,9 +76,8 @@ For wrapper-friendly mode, add approved identifiers/objects, for example
 `allowedLoggerIdentifiers: ["logger", "appLogger"]` or
 `allowedLoggerObjects: ["Sentry.logger", "Telemetry.logger"]`.
 
-`requireInlineAttributes` and `allowUnknownAttributeValues` only apply to
-`require-message-and-flat-attrs`; the reserved and sensitive key rules share
-only the logger matcher options.
+`allowUnknownAttributeValues` only applies to `require-message-and-flat-attrs`;
+the reserved and sensitive key rules share only the logger matcher options.
 
 Rollout: start `require-message-and-flat-attrs` at `warn`; keep reserved and
 sensitive key rules at `error`; promote all rules when conventions stabilize.
