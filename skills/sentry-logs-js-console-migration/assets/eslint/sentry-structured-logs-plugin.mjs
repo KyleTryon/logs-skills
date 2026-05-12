@@ -118,6 +118,8 @@ function getPropertyKey(prop) {
 
 function collectAttrsEntries(attrsNode, context, options = {}) {
   if (!attrsNode) return [];
+  const reportMalformedProperties = options.reportMalformedProperties === true;
+
   if (attrsNode.type !== "ObjectExpression") {
     if (options.reportNonLiteral) {
       context.report({
@@ -132,29 +134,35 @@ function collectAttrsEntries(attrsNode, context, options = {}) {
   const entries = [];
   for (const prop of attrsNode.properties) {
     if (prop.type === "SpreadElement") {
-      context.report({
-        node: prop,
-        message:
-          "Do not spread into log attributes; define each key explicitly.",
-      });
+      if (reportMalformedProperties) {
+        context.report({
+          node: prop,
+          message:
+            "Do not spread into log attributes; define each key explicitly.",
+        });
+      }
       continue;
     }
 
     if (prop.type !== "Property") {
-      context.report({
-        node: prop,
-        message: "Attributes must use static object properties.",
-      });
+      if (reportMalformedProperties) {
+        context.report({
+          node: prop,
+          message: "Attributes must use static object properties.",
+        });
+      }
       continue;
     }
 
     const key = getPropertyKey(prop);
     if (!key) {
-      context.report({
-        node: prop.key,
-        message:
-          "Attributes must use non-computed identifier or string literal keys.",
-      });
+      if (reportMalformedProperties) {
+        context.report({
+          node: prop.key,
+          message:
+            "Attributes must use non-computed identifier or string literal keys.",
+        });
+      }
       continue;
     }
 
@@ -209,6 +217,7 @@ function requireMessageAndFlatAttrs(context, node, options = {}) {
   }
 
   const entries = collectAttrsEntries(attrsArg, context, {
+    reportMalformedProperties: true,
     reportNonLiteral: options.requireInlineAttributes === true,
   });
   if (!entries) return;
