@@ -181,12 +181,26 @@ function isScalarLiteral(node) {
   );
 }
 
+function isKnownScalarExpression(node) {
+  if (isScalarLiteral(node)) return true;
+  if (node?.type === "TemplateLiteral") return true;
+  return false;
+}
+
 function isClearlyNonScalar(node) {
   if (!node) return false;
   if (NON_SCALAR_NODE_TYPES.has(node.type)) return true;
   if (node.type === "Literal") return !isScalarLiteral(node);
   if (node.type === "TemplateLiteral") return false;
   return false;
+}
+
+function isDisallowedAttributeValue(node, options = {}) {
+  if (isClearlyNonScalar(node)) return true;
+  return (
+    options.allowUnknownAttributeValues === false &&
+    !isKnownScalarExpression(node)
+  );
 }
 
 function isClearlyNotMessage(node) {
@@ -235,7 +249,7 @@ function requireMessageAndFlatAttrs(context, node, options = {}) {
       });
     }
 
-    if (isClearlyNonScalar(entry.valueNode)) {
+    if (isDisallowedAttributeValue(entry.valueNode, options)) {
       context.report({
         node: entry.valueNode,
         message: `Attribute "${entry.key}" must be scalar (string, number, or boolean).`,
@@ -307,6 +321,7 @@ export default {
   meta: { name: "eslint-plugin-sentry-structured-logs" },
   rules: {
     "require-message-and-flat-attrs": createRule(requireMessageAndFlatAttrs, {
+      allowUnknownAttributeValues: { type: "boolean" },
       requireInlineAttributes: { type: "boolean" },
     }),
     "no-reserved-attr-keys": createRule(noReservedAttrKeys),
