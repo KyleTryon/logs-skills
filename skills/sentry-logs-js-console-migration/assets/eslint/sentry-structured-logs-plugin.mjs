@@ -1,5 +1,5 @@
 const SENSITIVE_KEY_RE =
-  /(?:password|passwd|token|authorization|cookie|secret|api[_-]?key|private[_-]?key|session[_-]?id)/i;
+  /(?:password|passwd|token|authorization|cookie|secret|api[._-]?key|private[._-]?key|session[._-]?id)/i;
 const RESERVED_KEY_RE = /^(?:sentry\.|browser\.|server\.|user\.)/;
 const SNAKE_CASE_SEGMENT_RE = /^[a-z][a-z0-9_]*$/;
 const LEVEL_METHODS = new Set([
