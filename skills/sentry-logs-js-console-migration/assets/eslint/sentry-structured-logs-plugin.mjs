@@ -1,5 +1,7 @@
 const SENSITIVE_KEY_RE =
   /(?:password|passwd|token|authorization|cookie|secret|api[._-]?key|private[._-]?key|session[._-]?id)/i;
+const DOCS_URL =
+  "https://github.com/KyleTryon/logs-skills/blob/main/skills/sentry-logs-js-console-migration/references/eslint-plugin-sentry-structured-logs.md";
 const RESERVED_KEY_RE = /^(?:sentry\.|browser\.|server\.|user\.)/;
 const SNAKE_CASE_SEGMENT_RE = /^[a-z][a-z0-9_]*$/;
 const LEVEL_METHODS = new Set([
@@ -24,6 +26,30 @@ const LOGGER_MATCHER_OPTION_SCHEMA_PROPERTIES = {
     items: { type: "string" },
   },
   allowDynamicLevelMethods: { type: "boolean" },
+};
+const REQUIRE_MESSAGE_AND_FLAT_ATTRS_MESSAGES = {
+  messageRequired: "Logger call must include a message as the first argument.",
+  messageMustBeText:
+    "Logger call first argument must be message text, not structured data.",
+  nonInlineAttributes:
+    "Log attributes must be an inline object literal so lint rules can validate keys and values.",
+  noAttributeSpread:
+    "Do not spread into log attributes; define each key explicitly.",
+  staticAttributeProperties: "Attributes must use static object properties.",
+  staticAttributeKeys:
+    "Attributes must use non-computed identifier or string literal keys.",
+  snakeCaseAttributeKey:
+    'Each dotted key segment must be snake_case: "{{key}}".',
+  scalarAttributeValue:
+    'Attribute "{{key}}" must be scalar (string, number, or boolean).',
+};
+const RESERVED_ATTR_KEYS_MESSAGES = {
+  reservedAttributeKey:
+    'Reserved attribute prefix not allowed: "{{key}}". Do not overwrite SDK-managed keys under sentry.*, browser.*, server.*, or user.*.',
+};
+const SENSITIVE_ATTR_KEYS_MESSAGES = {
+  sensitiveAttributeKey:
+    'Sensitive key not allowed in log attributes: "{{key}}".',
 };
 
 function unwrapChainExpression(node) {
@@ -124,8 +150,7 @@ function collectAttrsEntries(attrsNode, context, options = {}) {
     if (options.reportNonLiteral) {
       context.report({
         node: attrsNode,
-        message:
-          "Log attributes must be an inline object literal so lint rules can validate keys and values.",
+        messageId: "nonInlineAttributes",
       });
     }
     return null;
@@ -137,8 +162,7 @@ function collectAttrsEntries(attrsNode, context, options = {}) {
       if (reportMalformedProperties) {
         context.report({
           node: prop,
-          message:
-            "Do not spread into log attributes; define each key explicitly.",
+          messageId: "noAttributeSpread",
         });
       }
       continue;
@@ -148,7 +172,7 @@ function collectAttrsEntries(attrsNode, context, options = {}) {
       if (reportMalformedProperties) {
         context.report({
           node: prop,
-          message: "Attributes must use static object properties.",
+          messageId: "staticAttributeProperties",
         });
       }
       continue;
@@ -159,8 +183,7 @@ function collectAttrsEntries(attrsNode, context, options = {}) {
       if (reportMalformedProperties) {
         context.report({
           node: prop.key,
-          message:
-            "Attributes must use non-computed identifier or string literal keys.",
+          messageId: "staticAttributeKeys",
         });
       }
       continue;
@@ -217,7 +240,7 @@ function requireMessageAndFlatAttrs(context, node, options = {}) {
   if (!messageArg) {
     context.report({
       node,
-      message: "Logger call must include a message as the first argument.",
+      messageId: "messageRequired",
     });
     return;
   }
@@ -225,8 +248,7 @@ function requireMessageAndFlatAttrs(context, node, options = {}) {
   if (isClearlyNotMessage(messageArg)) {
     context.report({
       node: messageArg,
-      message:
-        "Logger call first argument must be message text, not structured data.",
+      messageId: "messageMustBeText",
     });
   }
 
@@ -245,14 +267,16 @@ function requireMessageAndFlatAttrs(context, node, options = {}) {
     ) {
       context.report({
         node: entry.keyNode,
-        message: `Each dotted key segment must be snake_case: "${entry.key}".`,
+        messageId: "snakeCaseAttributeKey",
+        data: { key: entry.key },
       });
     }
 
     if (isDisallowedAttributeValue(entry.valueNode, options)) {
       context.report({
         node: entry.valueNode,
-        message: `Attribute "${entry.key}" must be scalar (string, number, or boolean).`,
+        messageId: "scalarAttributeValue",
+        data: { key: entry.key },
       });
     }
   }
@@ -267,9 +291,8 @@ function noReservedAttrKeys(context, node) {
     if (RESERVED_KEY_RE.test(entry.key)) {
       context.report({
         node: entry.keyNode,
-        message:
-          `Reserved attribute prefix not allowed: "${entry.key}". ` +
-          "Do not overwrite SDK-managed keys under sentry.*, browser.*, server.*, or user.*.",
+        messageId: "reservedAttributeKey",
+        data: { key: entry.key },
       });
     }
   }
@@ -284,16 +307,26 @@ function noSensitiveAttrKeys(context, node) {
     if (SENSITIVE_KEY_RE.test(entry.key)) {
       context.report({
         node: entry.keyNode,
-        message: `Sensitive key not allowed in log attributes: "${entry.key}".`,
+        messageId: "sensitiveAttributeKey",
+        data: { key: entry.key },
       });
     }
   }
 }
 
-function createRule(handler, optionSchemaProperties = {}) {
+function createRule(
+  handler,
+  { description, messages, optionSchemaProperties = {} },
+) {
   return {
     meta: {
       type: "problem",
+      docs: {
+        description,
+        recommended: false,
+        url: DOCS_URL,
+      },
+      messages,
       schema: [
         {
           type: "object",
@@ -321,10 +354,21 @@ export default {
   meta: { name: "eslint-plugin-sentry-structured-logs" },
   rules: {
     "require-message-and-flat-attrs": createRule(requireMessageAndFlatAttrs, {
-      allowUnknownAttributeValues: { type: "boolean" },
-      requireInlineAttributes: { type: "boolean" },
+      description:
+        "require Sentry logger calls to use message-first calls with flat scalar attributes",
+      messages: REQUIRE_MESSAGE_AND_FLAT_ATTRS_MESSAGES,
+      optionSchemaProperties: {
+        allowUnknownAttributeValues: { type: "boolean" },
+        requireInlineAttributes: { type: "boolean" },
+      },
     }),
-    "no-reserved-attr-keys": createRule(noReservedAttrKeys),
-    "no-sensitive-attr-keys": createRule(noSensitiveAttrKeys),
+    "no-reserved-attr-keys": createRule(noReservedAttrKeys, {
+      description: "disallow SDK-managed Sentry log attribute prefixes",
+      messages: RESERVED_ATTR_KEYS_MESSAGES,
+    }),
+    "no-sensitive-attr-keys": createRule(noSensitiveAttrKeys, {
+      description: "disallow sensitive Sentry log attribute keys",
+      messages: SENSITIVE_ATTR_KEYS_MESSAGES,
+    }),
   },
 };
