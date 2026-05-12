@@ -17,6 +17,14 @@ const NON_SCALAR_NODE_TYPES = new Set([
   "ArrowFunctionExpression",
   "ClassExpression",
 ]);
+const LOGGER_MATCHER_OPTION_SCHEMA_PROPERTIES = {
+  allowedLoggerObjects: { type: "array", items: { type: "string" } },
+  allowedLoggerIdentifiers: {
+    type: "array",
+    items: { type: "string" },
+  },
+  allowDynamicLevelMethods: { type: "boolean" },
+};
 
 function unwrapChainExpression(node) {
   return node?.type === "ChainExpression" ? node.expression : node;
@@ -259,7 +267,7 @@ function noSensitiveAttrKeys(context, node) {
   }
 }
 
-function createRule(handler) {
+function createRule(handler, optionSchemaProperties = {}) {
   return {
     meta: {
       type: "problem",
@@ -267,13 +275,8 @@ function createRule(handler) {
         {
           type: "object",
           properties: {
-            allowedLoggerObjects: { type: "array", items: { type: "string" } },
-            allowedLoggerIdentifiers: {
-              type: "array",
-              items: { type: "string" },
-            },
-            allowDynamicLevelMethods: { type: "boolean" },
-            requireInlineAttributes: { type: "boolean" },
+            ...LOGGER_MATCHER_OPTION_SCHEMA_PROPERTIES,
+            ...optionSchemaProperties,
           },
           additionalProperties: false,
         },
@@ -294,7 +297,9 @@ function createRule(handler) {
 export default {
   meta: { name: "eslint-plugin-sentry-structured-logs" },
   rules: {
-    "require-message-and-flat-attrs": createRule(requireMessageAndFlatAttrs),
+    "require-message-and-flat-attrs": createRule(requireMessageAndFlatAttrs, {
+      requireInlineAttributes: { type: "boolean" },
+    }),
     "no-reserved-attr-keys": createRule(noReservedAttrKeys),
     "no-sensitive-attr-keys": createRule(noSensitiveAttrKeys),
   },
