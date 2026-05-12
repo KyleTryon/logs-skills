@@ -1,14 +1,19 @@
 # Local ESLint plugin: Sentry structured logs
 
-The bundled plugin asset checks required message text, inline attribute objects
-for dotted `snake_case` keys and obvious non-scalars, reserved prefixes, and
-sensitive keys.
+The bundled plugin checks Sentry logger calls for required message text,
+inline attribute objects, dotted `snake_case` keys, obvious non-scalar values,
+reserved prefixes, and sensitive keys.
 
-The shape rule requires inline log attributes. Put reusable context on Sentry
-scopes, and keep the logger call's inline object for one-event facts. Set
-`allowUnknownAttributeValues: false` when you want to reject unknown expressions
-and allow only statically verifiable scalar attribute values. These rules
-validate logger calls, not scope attribute setters.
+Log attributes must be inline so ESLint can validate them at the callsite. Put
+reusable context on Sentry scopes, and reserve the logger call's inline object
+for facts specific to that one log event.
+
+Set `allowUnknownAttributeValues: false` when you want the shape rule to reject
+unknown expressions and allow only statically verifiable scalar attribute values.
+
+These rules validate `Sentry.logger.*(...)` calls only; they do not validate
+scope attribute setters.
+
 
 ## Asset
 
