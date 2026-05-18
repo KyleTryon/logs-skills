@@ -1,0 +1,8 @@
+interface:
+  display_name: "Sentry Logs JS Structured Instrumentation"
+  short_description: "Add operation-level structured Sentry logs in JS/TS apps with boundary mapping, event catalogs, ID-only user identity, formatting policy, sampling, and redaction."
+  brand_color: "#8B5CF6"
+  default_prompt: "Instrument high-value JS/TS operations with structured Sentry.logger boundary events. Build an event catalog first, include business and environment context (user/org/project/job IDs plus service/version/environment/region/commit_hash), set identity with `Sentry.setUser({ id })` only at the boundary that knows authenticated identity, call `Sentry.setUser(null)` on anonymous/cleared paths, and keep app-specific user metadata on non-`user.*` scope attributes. Enforce required-message + flat dot-notation snake_case attributes, keep trace/span/timing fields out of log payloads, apply level/sampling policy, and enforce sensitive-data redaction. Stay focused on operation-level instrumentation unless the user explicitly asks for broader logging changes."
+
+policy:
+  allow_implicit_invocation: true
