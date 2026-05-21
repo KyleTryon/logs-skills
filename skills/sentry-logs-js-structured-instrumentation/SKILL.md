@@ -1,10 +1,11 @@
 ---
 name: sentry-logs-js-structured-instrumentation
 description: >-
-  Design and add high-signal structured Sentry Logs instrumentation in
-  JavaScript/TypeScript apps: event catalogs, boundary logging, correlation
-  context, levels, sampling, and redaction. Use this after SDK setup for
-  operation-focused instrumentation work.
+  Use this when the user wants to make JavaScript/TypeScript Sentry Logs more
+  useful for debugging and operations after basic SDK setup. Helps add
+  structured, queryable logs around important workflows, choose useful events
+  and levels, correlate logs with requests or users, control noisy logging with
+  sampling, and keep sensitive data out of log attributes.
 license: MIT
 compatibility: >-
   JavaScript-platform Sentry SDK 9.41.0+ for Logs; 10.32.0+ recommended for
