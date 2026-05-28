@@ -110,6 +110,7 @@ message summary, logger family, Sentry capture path, and target action:
 
 - `delete`
 - `move_to_scope`
+- `move_to_capture_scope`
 - `move_to_span`
 - `flatten_to_attrs`
 - `merge_into_wide`
@@ -231,6 +232,8 @@ attention.
 Classify each log relative to its operation bundle:
 
 - broad context -> `move_to_scope`
+- console/error log next to `Sentry.captureException(err)` ->
+  `move_to_capture_scope`
 - timing, duration, latency, or elapsed fields -> `move_to_span`
 - useful JSON/object payload -> `flatten_to_attrs` unless sensitive, too large,
   high-cardinality, or better owned by scope/span
@@ -331,6 +334,35 @@ boundary failure log's scope or inline attributes. Trace every `throw` after a
 logger `error(...)` call, whether it uses `Sentry.logger`, `pino`, `winston`, or
 another retained logger.
 
+### CaptureException Precedence
+
+When a catch block has `console.*(err)` next to `Sentry.captureException(err)`,
+prefer `captureException` as the single Sentry event for real exceptions. It
+preserves stack traces and issue grouping. Do not add a `Sentry.logger.error`
+with the same error/context immediately before or after `captureException`.
+
+Move useful context from the old console call onto the capture scope:
+
+```javascript
+try {
+  await chargeCard(cart);
+} catch (err) {
+  Sentry.withScope((scope) => {
+    scope.setAttributes({
+      "order.id": orderId,
+      "payment.provider": "stripe",
+    });
+    Sentry.captureException(err);
+  });
+}
+```
+
+Use `Sentry.logger.error(...)` instead of `captureException` only for handled
+non-exception operational failures, or in addition to `captureException` only
+when the log is an independent searchable signal not represented by the
+exception event. If this catch rethrows and an upstream boundary captures the
+exception, do not add a duplicate error log here.
+
 Scope/log attribute naming:
 
 - quote dotted keys (`{ "order.id": order.id }`)
@@ -409,6 +441,9 @@ Final checks:
 - Useful existing JSON/object log payloads were flattened into dotted scalar
   attributes or intentionally moved to scope/span; they were not deleted only to
   satisfy flat-attribute lint rules.
+- Catch-block console/error logs adjacent to `Sentry.captureException` were not
+  duplicated as `Sentry.logger.error`; useful context was moved to capture
+  scope.
 - Existing timing, duration, latency, and elapsed log attributes were removed
   from logs and replaced with custom spans or span attributes; no
   `Sentry.setMeasurement()` migration target was introduced.
