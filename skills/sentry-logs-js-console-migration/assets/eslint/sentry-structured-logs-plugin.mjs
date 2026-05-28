@@ -25,12 +25,17 @@ const LOGGER_MATCHER_OPTION_SCHEMA_PROPERTIES = {
     type: "array",
     items: { type: "string" },
   },
+  attributesFirstLoggerObjects: { type: "array", items: { type: "string" } },
+  attributesFirstLoggerIdentifiers: {
+    type: "array",
+    items: { type: "string" },
+  },
   allowDynamicLevelMethods: { type: "boolean" },
 };
 const REQUIRE_MESSAGE_AND_FLAT_ATTRS_MESSAGES = {
-  messageRequired: "Logger call must include a message as the first argument.",
+  messageRequired: "Logger call must include a message argument.",
   messageMustBeText:
-    "Logger call first argument must be message text, not structured data.",
+    "Logger call message argument must be text, not structured data.",
   nonInlineAttributes:
     "Log attributes must be an inline object literal so lint rules can validate keys and values.",
   noAttributeSpread:
@@ -104,7 +109,7 @@ function getMemberPath(node) {
   return null;
 }
 
-function isLoggerCall(node, options = {}) {
+function getLoggerCallConfig(node, options = {}) {
   if (node?.type !== "CallExpression") return false;
 
   const callee = unwrapChainExpression(node.callee);
@@ -116,23 +121,59 @@ function isLoggerCall(node, options = {}) {
   const allowedLoggerIdentifiers = new Set(
     options.allowedLoggerIdentifiers || [],
   );
+  const attributesFirstLoggerObjects = new Set(
+    options.attributesFirstLoggerObjects || [],
+  );
+  const attributesFirstLoggerIdentifiers = new Set(
+    options.attributesFirstLoggerIdentifiers || [],
+  );
 
   const objectPath = getMemberPath(callee.object);
+  const objectIdentifier =
+    callee.object?.type === "Identifier" ? callee.object.name : null;
   const isAllowedLoggerObject =
     (objectPath && allowedLoggerObjects.has(objectPath)) ||
-    (callee.object?.type === "Identifier" &&
-      allowedLoggerIdentifiers.has(callee.object.name));
+    (objectIdentifier && allowedLoggerIdentifiers.has(objectIdentifier));
 
   if (!isAllowedLoggerObject) return false;
 
   const method = getStaticPropertyName(callee);
-  if (method) return LEVEL_METHODS.has(method);
+  const isLevelMethod = method
+    ? LEVEL_METHODS.has(method)
+    : hasDynamicPropertyName(callee)
+      ? options.allowDynamicLevelMethods !== false
+      : false;
 
-  if (hasDynamicPropertyName(callee)) {
-    return options.allowDynamicLevelMethods !== false;
+  if (!isLevelMethod) return false;
+
+  const attributesFirst =
+    (objectPath && attributesFirstLoggerObjects.has(objectPath)) ||
+    (objectIdentifier &&
+      attributesFirstLoggerIdentifiers.has(objectIdentifier));
+
+  return {
+    attributesArgumentIndex: attributesFirst ? 0 : 1,
+    messageArgumentIndex: attributesFirst ? 1 : 0,
+  };
+}
+
+function isLoggerCall(node, options = {}) {
+  return Boolean(getLoggerCallConfig(node, options));
+}
+
+function getLoggerArguments(node, options = {}) {
+  const config = getLoggerCallConfig(node, options);
+  if (!config) {
+    return {
+      attrsArg: null,
+      messageArg: null,
+    };
   }
 
-  return false;
+  return {
+    attrsArg: node.arguments[config.attributesArgumentIndex],
+    messageArg: node.arguments[config.messageArgumentIndex],
+  };
 }
 
 function getPropertyKey(prop) {
@@ -236,7 +277,7 @@ function isClearlyNotMessage(node) {
 }
 
 function requireMessageAndFlatAttrs(context, node, options = {}) {
-  const [messageArg, attrsArg] = node.arguments;
+  const { messageArg, attrsArg } = getLoggerArguments(node, options);
   if (!messageArg) {
     context.report({
       node,
@@ -283,7 +324,7 @@ function requireMessageAndFlatAttrs(context, node, options = {}) {
 }
 
 function noReservedAttrKeys(context, node) {
-  const attrsArg = node.arguments[1];
+  const { attrsArg } = getLoggerArguments(node, context.options?.[0] || {});
   const entries = collectAttrsEntries(attrsArg, context);
   if (!entries) return;
 
@@ -299,7 +340,7 @@ function noReservedAttrKeys(context, node) {
 }
 
 function noSensitiveAttrKeys(context, node) {
-  const attrsArg = node.arguments[1];
+  const { attrsArg } = getLoggerArguments(node, context.options?.[0] || {});
   const entries = collectAttrsEntries(attrsArg, context);
   if (!entries) return;
 

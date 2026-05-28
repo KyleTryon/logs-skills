@@ -1,16 +1,18 @@
 ---
 name: sentry-logs-js-console-migration
 description: >-
-  Migrate TypeScript/JavaScript console.* or legacy logger calls to Sentry Logs
-  (Sentry.logger): flow mapping, scope placement, wide events, bridge teardown,
-  redaction, and ESLint audit. Not for initial SDK setup or framework wiring.
+  Migrate TypeScript/JavaScript console.* or existing logger calls to
+  Sentry-captured structured logs: flow mapping, scope placement, wide events,
+  bridge teardown, redaction, and ESLint audit. Preserve existing logger
+  libraries such as pino or winston unless the user explicitly asks to replace
+  them. Not for initial SDK setup or framework wiring.
 license: MIT
 compatibility: >-
   JavaScript-platform Sentry SDK 9.41.0+ for Logs; 10.32.0+ for
   scope.setAttributes on logs; browser Logs require NPM SDK, not loader/CDN.
 ---
 
-# Console to Sentry Logs (`Sentry.logger`)
+# Console and Existing Loggers to Sentry Logs
 
 ## Use
 
@@ -45,6 +47,10 @@ Assets:
 - Prefer tracing for correlation; avoid bespoke `request_id` schemes.
 - Do not add timing, duration, or latency log attributes; traces/spans own
   timing data.
+- Preserve existing production logger libraries such as `pino`, `winston`, or
+  `consola`. Do not replace them with `Sentry.logger`; keep their call syntax
+  and configure the appropriate Sentry integration/transport so their structured
+  logs are captured.
 - Map flow/boundaries before edits. Migrate by operation, route, job, command,
   or user action, not by statement.
 - Prefer one wide log per operation: reusable context on scope attributes,
@@ -58,7 +64,9 @@ Assets:
   keys; never set `sentry.*`, `browser.*`, `server.*`, or `user.*`.
 - Use `beforeSendLog` for production drops/redaction. Never log raw tokens,
   passwords, cookies, authorization headers, or secrets.
-- Bridges are temporary; remove them after call sites move to `Sentry.logger`.
+- Bridges are temporary only for call sites being moved away from `console.*` or
+  deprecated wrappers. Keep durable integrations/transports for retained logger
+  libraries.
 - Enforce zero remaining `console.*` in governed app/shared code with ESLint.
   Scope intentional CLI/server output as documented overrides.
 - Governed code means production app/shared JS/TS across browser, server, edge,
@@ -97,7 +105,7 @@ npx eslint . --ext .js,.jsx,.ts,.tsx,.mjs,.cjs,.mts,.cts -f json --max-warnings=
 
 Search separately for `pino`, `winston`, `consola`, and custom wrappers because
 `no-console` misses them. For each hit, record path, line, operation, method,
-message summary, and target action:
+message summary, logger family, Sentry capture path, and target action:
 
 - `delete`
 - `move_to_scope`
@@ -106,6 +114,11 @@ message summary, and target action:
 
 Group hits into operation bundles before deciding what to emit. Deliver counts
 by file/rule/action.
+
+For existing logger libraries, inventory does not mean replacement. Confirm the
+logger is captured by Sentry (`pinoIntegration`, Winston transport, Consola
+reporter, or a maintained wrapper), then apply the same operation, scope,
+wide-event, level, redaction, and lint rules to the retained logger calls.
 
 ## Phase 2: Boundary Map
 
@@ -176,9 +189,13 @@ data export, user-visible failures, then background jobs and leaf UI.
 
 ## Phase 4: Convert
 
-Message is required; structured data is the second argument. Do not mechanically
-replace `console.log("x")` with `Sentry.logger.info("x")`. Design the operation
-event:
+Message is required; structured data must be an inline object literal in the
+logger's native structured-argument position. For `Sentry.logger`, structured
+data is the second argument. For `pino`, structured data is usually the first
+argument and the message is second. Do not mechanically replace
+`console.log("x")` with `Sentry.logger.info("x")`, and do not mechanically
+replace `pino.info(...)` or `winston.info(...)` with `Sentry.logger.info(...)`.
+Design the operation event:
 
 1. Move broad route/job/user context onto scope.
 2. Use `withScope` for branch/dependency context inherited by only part of the
@@ -204,13 +221,27 @@ Sentry.logger.info("Checkout completed", {
 });
 ```
 
+Existing logger libraries keep their native API while following the same
+attribute rules:
+
+```javascript
+logger.info(
+  {
+    "order.id": order.id,
+    "result.status": "completed",
+  },
+  "Checkout completed",
+);
+```
+
 ### Duplicate-Failure Guard
 
 A failure path emits at most one log event per operation/dependency failure. Let
 the catch block be the single failure logger, or log before throwing only when
 no later catch logs it. Wrap/rethrow with extra data and preserve facts for the
-boundary failure log's scope or inline attributes. Trace every `throw` after
-`Sentry.logger.error(...)`.
+boundary failure log's scope or inline attributes. Trace every `throw` after a
+logger `error(...)` call, whether it uses `Sentry.logger`, `pino`, `winston`, or
+another retained logger.
 
 Scope/log attribute naming:
 
@@ -223,8 +254,12 @@ Scope/log attribute naming:
 
 ## Phase 5: Transitional Bridges
 
-End state: call sites use `Sentry.logger` directly. Use bridges only for a
-temporary transition, and tune levels to avoid ingesting everything.
+End state for `console.*`: migrated call sites use `Sentry.logger` directly or
+are deleted/kept only as intentional user-facing terminal output. End state for
+existing production logger libraries: call sites keep the existing logger and
+emit structured, Sentry-captured logs with the same scope, wide-event, level,
+and redaction policy. Use bridges only for a temporary transition, and tune
+levels to avoid ingesting everything.
 
 - `console`: `Sentry.consoleLoggingIntegration({ levels: [...] })` (SDK 10.13.0+
   for multi-arg parsing)
@@ -232,6 +267,10 @@ temporary transition, and tune levels to avoid ingesting everything.
 - Pino: `Sentry.pinoIntegration()` (SDK 10.18.0+)
 - Winston: `Sentry.createSentryWinstonTransport(Transport, { levels: ... })`
   (SDK 9.13.0+)
+
+Treat retained logger integrations/transports as durable Sentry capture paths,
+not temporary bridges. Remove only temporary console shims, duplicate wrappers,
+or compatibility bridges once their call sites have been migrated.
 
 ## Phase 6: Filter and Redact
 
@@ -259,7 +298,12 @@ governed JS/TS, or unrelated rule changes.
 Use `no-console` plus structured-log rules as CI truth. Keep local scripts
 aligned with CI. The local plugin covers logger call message text, inline
 attribute shape, reserved prefixes, and sensitive keys; scope attributes need
-the same review/redaction policy.
+the same review/redaction policy. Configure the structured-log rules to cover
+retained logger identifiers/objects such as `logger`, `appLogger`, `pinoLogger`,
+or `winstonLogger` so non-console libraries are audited instead of ignored. For
+`pino` or other attrs-first APIs, set the plugin's
+`attributesFirstLoggerIdentifiers`/`attributesFirstLoggerObjects` options rather
+than rewriting the library calls into `Sentry.logger` syntax.
 
 Final checks:
 
@@ -271,8 +315,12 @@ Final checks:
 - Legacy logger searches have zero unhandled findings.
 - SDK version, `enableLogs`, tracing, scopes, and `beforeSendLog` verified for
   each logging runtime.
+- Existing logger libraries such as `pino` or `winston` remain in place when
+  present, have Sentry capture configured, and use flat scalar structured
+  attributes with stable messages.
 - Migrated operation bundles emit one named boundary-owned wide event, with
   broad context set on scope before downstream logs/errors.
-- Bridges removed or teardown owner/date tracked.
+- Temporary bridges removed or teardown owner/date tracked; durable integrations
+  for retained logger libraries remain documented.
 - Sentry samples verify policy, trace correlation, expected attributes,
   redaction, and no PII/secrets.

@@ -98,16 +98,22 @@ assert.deepEqual(
     "allowUnknownAttributeValues",
     "allowedLoggerIdentifiers",
     "allowedLoggerObjects",
+    "attributesFirstLoggerIdentifiers",
+    "attributesFirstLoggerObjects",
   ],
 );
 assert.deepEqual(Object.keys(noReservedAttrKeys.meta.schema[0].properties), [
   "allowedLoggerObjects",
   "allowedLoggerIdentifiers",
+  "attributesFirstLoggerObjects",
+  "attributesFirstLoggerIdentifiers",
   "allowDynamicLevelMethods",
 ]);
 assert.deepEqual(Object.keys(noSensitiveAttrKeys.meta.schema[0].properties), [
   "allowedLoggerObjects",
   "allowedLoggerIdentifiers",
+  "attributesFirstLoggerObjects",
+  "attributesFirstLoggerIdentifiers",
   "allowDynamicLevelMethods",
 ]);
 
@@ -135,6 +141,32 @@ assertReports(
   ),
   { allowedLoggerIdentifiers: ["logger"] },
   [],
+);
+assertReports(
+  requireMessageAndFlatAttrs,
+  loggerCall(
+    identifier("info"),
+    [attrs([attr("job.id", identifier("jobId"))]), literal("ready")],
+    identifier("logger"),
+  ),
+  {
+    allowedLoggerIdentifiers: ["logger"],
+    attributesFirstLoggerIdentifiers: ["logger"],
+  },
+  [],
+);
+assertReports(
+  requireMessageAndFlatAttrs,
+  loggerCall(
+    identifier("info"),
+    [literal("ready"), attrs([attr("job.id", identifier("jobId"))])],
+    identifier("logger"),
+  ),
+  {
+    allowedLoggerIdentifiers: ["logger"],
+    attributesFirstLoggerIdentifiers: ["logger"],
+  },
+  ["messageMustBeText", "nonInlineAttributes"],
 );
 assertReports(
   requireMessageAndFlatAttrs,
@@ -243,12 +275,38 @@ assertReports(
   ["reservedAttributeKey"],
 );
 assertReports(
+  noReservedAttrKeys,
+  loggerCall(
+    identifier("info"),
+    [attrs([attr("sentry.trace_id", literal("abc"))]), literal("ready")],
+    identifier("logger"),
+  ),
+  {
+    allowedLoggerIdentifiers: ["logger"],
+    attributesFirstLoggerIdentifiers: ["logger"],
+  },
+  ["reservedAttributeKey"],
+);
+assertReports(
   noSensitiveAttrKeys,
   loggerCall(identifier("info"), [
     literal("ready"),
     attrs([attr("api.key", literal("secret"))]),
   ]),
   {},
+  ["sensitiveAttributeKey"],
+);
+assertReports(
+  noSensitiveAttrKeys,
+  loggerCall(
+    identifier("info"),
+    [attrs([attr("api.key", literal("secret"))]), literal("ready")],
+    identifier("logger"),
+  ),
+  {
+    allowedLoggerIdentifiers: ["logger"],
+    attributesFirstLoggerIdentifiers: ["logger"],
+  },
   ["sensitiveAttributeKey"],
 );
 

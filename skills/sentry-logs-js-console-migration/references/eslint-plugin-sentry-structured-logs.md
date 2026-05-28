@@ -1,9 +1,10 @@
 # Local ESLint plugin: Sentry structured logs
 
-The bundled plugin checks configured Sentry logger calls, defaulting to
+The bundled plugin checks configured logger calls, defaulting to
 `Sentry.logger.*(...)`, for a required message argument, inline attribute
 objects, dotted `snake_case` key segments, obvious non-scalar values, reserved
-prefixes, and sensitive keys.
+prefixes, and sensitive keys. It can also validate retained loggers like `pino`
+that use attrs-first call syntax.
 
 When a logger call includes attributes, they must be an inline object literal so
 ESLint can validate them at the callsite. Put reusable context on Sentry scopes,
@@ -47,6 +48,8 @@ import sentryStructuredLogs from "./eslint/sentry-structured-logs-plugin.mjs";
 const loggerMatcherOptions = {
   allowedLoggerObjects: ["Sentry.logger"],
   allowedLoggerIdentifiers: [],
+  attributesFirstLoggerObjects: [],
+  attributesFirstLoggerIdentifiers: [],
   allowDynamicLevelMethods: true,
 };
 
@@ -82,8 +85,25 @@ For wrapper-friendly mode, add approved identifiers/objects, for example
 `allowedLoggerIdentifiers: ["logger", "appLogger"]` or
 `allowedLoggerObjects: ["Sentry.logger", "Telemetry.logger"]`.
 
+For native `pino` calls, keep the existing logger and mark its identifiers as
+attrs-first:
+
+```javascript
+const loggerMatcherOptions = {
+  allowedLoggerObjects: ["Sentry.logger"],
+  allowedLoggerIdentifiers: ["logger", "pinoLogger"],
+  attributesFirstLoggerIdentifiers: ["logger", "pinoLogger"],
+  allowDynamicLevelMethods: true,
+};
+```
+
+With that config, the plugin expects
+`logger.info({ "order.id": order.id }, "Checkout completed")` while still
+expecting `Sentry.logger.info("Checkout completed", { "order.id": order.id })`.
+
 `allowUnknownAttributeValues` only applies to `require-message-and-flat-attrs`;
-the reserved and sensitive key rules share only the logger matcher options.
+the reserved and sensitive key rules share only the logger matcher options and
+the attrs-first logger options.
 
 Rollout: start `require-message-and-flat-attrs` at `warn`; keep reserved and
 sensitive key rules at `error`; promote all rules when conventions stabilize.
