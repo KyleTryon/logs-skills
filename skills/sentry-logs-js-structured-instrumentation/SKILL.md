@@ -60,6 +60,17 @@ Every `Sentry.logger.*(...)` call must follow:
 7. No sensitive keys (`password`, `token`, `authorization`, `cookie`, `secret`,
    API key material).
 
+When existing logs contain useful JSON/object payloads, flatten selected scalar
+facts into dotted attributes. Drop or redact sensitive, bulky, unstable, or unbounded fields.
+
+```javascript
+Sentry.logger.info("Order created", {
+  "order.id": order.id,
+  "order.total": order.total,
+  "result.status": "created",
+});
+```
+
 Reserved-prefix checks apply to custom attributes, not to `Sentry.setUser`.
 
 Lint enforcement in touched logging scope:
@@ -238,6 +249,7 @@ Task Progress:
 - [ ] Keep one boundary-owned wide completion/failure event
 - [ ] Enforce formatting: required message, dot-notation keys, snake_case segments
 - [ ] Keep logger attrs inline, flat, and scalar (no spread/computed/nested values)
+- [ ] Flatten useful JSON/object payloads
 - [ ] Follow Phase 2 identity policy (`setUser` + app user metadata placement)
 - [ ] Follow Phase 2 trace/timing policy (replace useful timing log fields with spans)
 - [ ] Apply level and sampling policy

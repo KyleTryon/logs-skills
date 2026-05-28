@@ -111,6 +111,7 @@ message summary, logger family, Sentry capture path, and target action:
 - `delete`
 - `move_to_scope`
 - `move_to_span`
+- `flatten_to_attrs`
 - `merge_into_wide`
 - `keep`
 
@@ -231,6 +232,8 @@ Classify each log relative to its operation bundle:
 
 - broad context -> `move_to_scope`
 - timing, duration, latency, or elapsed fields -> `move_to_span`
+- useful JSON/object payload -> `flatten_to_attrs` unless sensitive, too large,
+  high-cardinality, or better owned by scope/span
 - larger-operation step -> `merge_into_wide` by moving reusable context to scope
   or preserving a local value for the final inline log attributes
 - independently searchable signal -> `keep`
@@ -260,6 +263,10 @@ Design the operation event:
 4. Emit one final completion/failure log with inline flat attributes.
 5. Keep separate warn/error logs only when they are standalone signals.
 
+Existing object payloads usually become flattened dotted attributes, not
+deletions. Keep scalar facts that explain the operation, and drop/redact
+sensitive, bulky, unstable, or unbounded fields.
+
 ```javascript
 Sentry.setUser({ id: user.id });
 Sentry.getIsolationScope().setAttributes({
@@ -288,6 +295,30 @@ logger.info(
     "result.status": "completed",
   },
   "Checkout completed",
+);
+```
+
+Object payload migration:
+
+```javascript
+console.log("Order created", {
+  order: { id: order.id, total: order.total },
+  result: { status: "created" },
+});
+
+Sentry.logger.info("Order created", {
+  "order.id": order.id,
+  "order.total": order.total,
+  "result.status": "created",
+});
+
+logger.info(
+  {
+    "order.id": order.id,
+    "order.total": order.total,
+    "result.status": "created",
+  },
+  "Order created",
 );
 ```
 
@@ -375,6 +406,9 @@ Final checks:
 - Existing logger libraries such as `pino` or `winston` remain in place when
   present, have Sentry capture configured, and use flat scalar structured
   attributes with stable messages.
+- Useful existing JSON/object log payloads were flattened into dotted scalar
+  attributes or intentionally moved to scope/span; they were not deleted only to
+  satisfy flat-attribute lint rules.
 - Existing timing, duration, latency, and elapsed log attributes were removed
   from logs and replaced with custom spans or span attributes; no
   `Sentry.setMeasurement()` migration target was introduced.
