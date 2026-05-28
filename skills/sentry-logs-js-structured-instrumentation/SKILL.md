@@ -61,7 +61,8 @@ Every `Sentry.logger.*(...)` call must follow:
    API key material).
 
 When existing logs contain useful JSON/object payloads, flatten selected scalar
-facts into dotted attributes. Drop or redact sensitive, bulky, unstable, or unbounded fields.
+facts into dotted attributes. Drop or redact sensitive, bulky, unstable, or
+unbounded fields.
 
 ```javascript
 Sentry.logger.info("Order created", {
