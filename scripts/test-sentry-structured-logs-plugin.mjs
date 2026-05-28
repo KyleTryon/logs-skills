@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-import sentryStructuredLogs from "../skills/sentry-logs-js-console-migration/assets/eslint/sentry-structured-logs-plugin.mjs";
+import sentryStructuredLogs from "../skills/sentry-logs-migration-javascript/assets/eslint/sentry-structured-logs-plugin.mjs";
 
 const {
   "require-message-and-flat-attrs": requireMessageAndFlatAttrs,

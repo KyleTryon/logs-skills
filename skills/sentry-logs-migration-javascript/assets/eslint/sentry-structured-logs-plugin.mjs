@@ -1,7 +1,7 @@
 const SENSITIVE_KEY_RE =
   /(?:password|passwd|token|authorization|cookie|secret|api[._-]?key|private[._-]?key|session[._-]?id)/i;
 const DOCS_URL =
-  "https://github.com/KyleTryon/logs-skills/blob/main/skills/sentry-logs-js-console-migration/references/eslint-plugin-sentry-structured-logs.md";
+  "https://github.com/KyleTryon/logs-skills/blob/main/skills/sentry-logs-migration-javascript/references/eslint-plugin-sentry-structured-logs.md";
 const RESERVED_KEY_RE = /^(?:sentry\.|browser\.|server\.|user\.)/;
 const SNAKE_CASE_SEGMENT_RE = /^[a-z][a-z0-9_]*$/;
 const LEVEL_METHODS = new Set([

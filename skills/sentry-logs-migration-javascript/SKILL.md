@@ -1,5 +1,5 @@
 ---
-name: sentry-logs-js-console-migration
+name: sentry-logs-migration-javascript
 description: >-
   Migrate TypeScript/JavaScript console.* or existing logger calls to
   Sentry-captured structured logs: flow mapping, scope placement, wide events,

@@ -1,5 +1,5 @@
 ---
-name: sentry-logs-js-structured-instrumentation
+name: sentry-setup-logs-javascript
 description: >-
   Use this when the user wants to make JavaScript/TypeScript Sentry Logs more
   useful for debugging and operations after basic SDK setup. Helps add

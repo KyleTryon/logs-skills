@@ -8,7 +8,8 @@ TypeScript projects.
 
 | Skill                                                                          | What it helps with                                                                                                                                       |
 | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`sentry-logs-js-console-migration`](skills/sentry-logs-js-console-migration/) | Migrate JavaScript/TypeScript from `console.*` or legacy loggers to Sentry Logs with boundary maps, scoped context, wide events, redaction, and linting. |
+| [`sentry-logs-migration-javascript`](skills/sentry-logs-migration-javascript/) | Migrate JavaScript/TypeScript from `console.*` or legacy loggers to Sentry Logs with boundary maps, scoped context, wide events, redaction, and linting. |
+| [`sentry-setup-logs-javascript`](skills/sentry-setup-logs-javascript/)         | Add operation-level structured Sentry Logs in JavaScript/TypeScript apps with event catalogs, scoped context, sampling, and redaction.                   |
 
 ## Get Started
 
@@ -62,7 +63,7 @@ pnpm tokens:skills
 Validate one skill directly:
 
 ```bash
-.venv/bin/skills-ref validate ./skills/sentry-logs-js-console-migration
+.venv/bin/skills-ref validate ./skills/sentry-logs-migration-javascript
 ```
 
 ## Add a Skill
