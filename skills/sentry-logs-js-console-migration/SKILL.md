@@ -16,15 +16,12 @@ compatibility: >-
 
 ## Use
 
-Use for JavaScript/TypeScript apps using `@sentry/nextjs`, `@sentry/node`,
-`@sentry/react`, `@sentry/vue`, or `@sentry/browser`. For SDK installation,
-framework init files, runtime boundaries, or package wiring, use:
+Use for JS/TS apps using `@sentry/nextjs`, `@sentry/node`, `@sentry/react`,
+`@sentry/vue`, or `@sentry/browser`. For SDK installation, framework init files,
+runtime boundaries, or package wiring, use the platform SDK skill first.
 
-- [`@sentry/nextjs`](https://skills.sentry.dev/sentry-nextjs-sdk/SKILL.md)
-- [`@sentry/react`](https://skills.sentry.dev/sentry-react-sdk/SKILL.md)
-- [`@sentry/node`](https://skills.sentry.dev/sentry-node-sdk/SKILL.md)
-- [JavaScript Logs docs](https://docs.sentry.io/platforms/javascript/logs/) and
-  [Tracing docs](https://docs.sentry.io/platforms/javascript/tracing/)
+Docs: [JavaScript Logs](https://docs.sentry.io/platforms/javascript/logs/),
+[Tracing](https://docs.sentry.io/platforms/javascript/tracing/)
 
 Reference files:
 
@@ -131,15 +128,9 @@ wide-event, level, redaction, and lint rules to the retained logger calls.
 
 ## Phase 2: Boundary Map
 
-Complete the boundary map before migrating an operation bundle; update it only
-if implementation changes scope placement or wide-event ownership. Before edits,
-decide what belongs on global scope, isolation scope, nested `withScope`, inline
-log attributes, or deletion. Each operation needs a named wide event, a boundary
-where broad context is set before downstream logs/errors, and a flow path to
-each migrated log.
-
-For the context ownership model and framework-specific placement rules, read the
-execution-flow reference.
+Before each bundle, update the map only if scope placement or wide-event
+ownership changes. Decide what belongs on scope, inline attributes, spans,
+capture scope, or deletion.
 
 ## Attribute Placement
 
@@ -183,19 +174,7 @@ Retained logger libraries follow the same rule: keep the native logger call for
 the operation outcome, but move `duration_ms`, `latency_ms`, and similar fields
 to the span.
 
-Before:
-
-```javascript
-const startedAt = Date.now();
-const order = await chargeCard(cart);
-
-logger.info(
-  { "order.id": order.id, duration_ms: Date.now() - startedAt },
-  "Checkout completed",
-);
-```
-
-After:
+Example:
 
 ```javascript
 const order = await Sentry.startSpan(
@@ -204,7 +183,7 @@ const order = await Sentry.startSpan(
 );
 
 logger.info(
-  { "order.id": order.id, "result.status": "completed" },
+  { "order.id": order.id, "result.status": "completed" }, // no duration_ms
   "Checkout completed",
 );
 ```
@@ -270,60 +249,24 @@ Existing object payloads usually become flattened dotted attributes, not
 deletions. Keep scalar facts that explain the operation, and drop/redact
 sensitive, bulky, unstable, or unbounded fields.
 
-```javascript
-Sentry.setUser({ id: user.id });
-Sentry.getIsolationScope().setAttributes({
-  "route.name": "checkout.create",
-  org_id: user.orgId,
-  user_tier: user.tier,
-  "cart.item_count": cart.items.length,
-  "payment.method": "stripe",
-});
-
-const order = await chargeCard(cart);
-
-Sentry.logger.info("Checkout completed", {
-  "order.id": order.id,
-  "result.status": "completed",
-});
-```
-
-Existing logger libraries keep their native API while following the same
-attribute rules:
-
-```javascript
-logger.info(
-  {
-    "order.id": order.id,
-    "result.status": "completed",
-  },
-  "Checkout completed",
-);
-```
-
 Object payload migration:
 
 ```javascript
+// Before
 console.log("Order created", {
   order: { id: order.id, total: order.total },
   result: { status: "created" },
 });
 
+// After
 Sentry.logger.info("Order created", {
   "order.id": order.id,
   "order.total": order.total,
   "result.status": "created",
 });
-
-logger.info(
-  {
-    "order.id": order.id,
-    "order.total": order.total,
-    "result.status": "created",
-  },
-  "Order created",
-);
 ```
+
+For retained loggers, use the same flattened attributes in native arg order.
 
 ### Duplicate-Failure Guard
 
@@ -348,10 +291,7 @@ try {
   await chargeCard(cart);
 } catch (err) {
   Sentry.withScope((scope) => {
-    scope.setAttributes({
-      "order.id": orderId,
-      "payment.provider": "stripe",
-    });
+    scope.setAttributes({ "order.id": orderId, "payment.provider": "stripe" });
     Sentry.captureException(err);
   });
 }
@@ -425,31 +365,10 @@ or `winstonLogger` so non-console libraries are audited instead of ignored. For
 `attributesFirstLoggerIdentifiers`/`attributesFirstLoggerObjects` options rather
 than rewriting the library calls into `Sentry.logger` syntax.
 
-Final checks:
-
-- ESLint passes governed app/shared code with `no-console`, structured-log
-  rules, and `--max-warnings=0`; every finding is migrated, deleted, or covered
-  by a narrow documented CLI/user-output override.
-- No broad ESLint disables, temporary overrides, or "already migrated only" rule
-  scoping remain.
-- Legacy logger searches have zero unhandled findings.
-- SDK version, `enableLogs`, tracing, scopes, and `beforeSendLog` verified for
-  each logging runtime.
-- Existing logger libraries such as `pino` or `winston` remain in place when
-  present, have Sentry capture configured, and use flat scalar structured
-  attributes with stable messages.
-- Useful existing JSON/object log payloads were flattened into dotted scalar
-  attributes or intentionally moved to scope/span; they were not deleted only to
-  satisfy flat-attribute lint rules.
-- Catch-block console/error logs adjacent to `Sentry.captureException` were not
-  duplicated as `Sentry.logger.error`; useful context was moved to capture
-  scope.
-- Existing timing, duration, latency, and elapsed log attributes were removed
-  from logs and replaced with custom spans or span attributes; no
-  `Sentry.setMeasurement()` migration target was introduced.
-- Migrated operation bundles emit one named boundary-owned wide event, with
-  broad context set on scope before downstream logs/errors.
-- Temporary bridges removed or teardown owner/date tracked; durable integrations
-  for retained logger libraries remain documented.
-- Sentry samples verify policy, trace correlation, expected attributes,
-  redaction, and no PII/secrets.
+Final checks: ESLint passes governed code with no broad disables; legacy logger
+searches have zero unhandled findings; SDK version, `enableLogs`, tracing,
+scopes, and `beforeSendLog` are verified per runtime. Existing loggers remain in
+place with durable capture paths. JSON payloads are flattened or intentionally
+moved to scope/span; timing fields become spans/span attributes; adjacent
+`captureException` paths do not duplicate `Sentry.logger.error`; samples verify
+trace correlation, expected attributes, redaction, and no PII/secrets.
