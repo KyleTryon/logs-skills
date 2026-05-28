@@ -36,7 +36,8 @@ Docs: [JavaScript Logs](https://docs.sentry.io/platforms/javascript/logs/),
   `commit_hash`).
 - Follow Phase 2 identity policy for `Sentry.setUser` and app user metadata.
 - Follow Phase 2 trace/timing policy: keep trace/span/timing out of log
-  payloads.
+  payloads. Replace useful existing timing log fields with span attributes or
+  custom spans instead of dropping the signal.
 - Use levels intentionally (`debug`, `info`, `warn`, `error`, `fatal`) and keep
   failure coverage unsampled.
 - Keep logs safe: never emit secrets, auth material, or unnecessary PII.
@@ -82,6 +83,7 @@ Before editing, map operations and where decisions/surprises happen.
    - key decision points (allow/deny, retry/give-up, fallback chosen)
    - surprise conditions (unexpected empty result, degraded dependency)
    - completion outcomes (success/partial/failure)
+   - existing timing fields that should become span instrumentation
 3. Ensure logs answer: what happened, to whom, why, and outcome.
 
 Deliver a compact operation map before adding logs.
@@ -132,7 +134,48 @@ Identity placement rules:
 - Do not set user context in shared helpers; boundary code owns user identity.
 
 Tracing owns correlation and timing. Do not add trace/span/timing fields to log
-payloads for that purpose.
+payloads for that purpose. When timing information already exists in logs, move
+it into tracing rather than deleting the signal.
+
+Timing migration rules:
+
+- If an active span already represents the operation, add useful metrics with
+  `Sentry.getActiveSpan()?.setAttribute(...)` or `setAttributes(...)`.
+- If existing code manually measures an operation with `Date.now()`,
+  `performance.now()`, or start/end variables, replace that measurement with
+  `Sentry.startSpan(...)` around the operation.
+- If callback-style instrumentation cannot fit the code shape, use
+  `Sentry.startSpanManual(...)` or `Sentry.startInactiveSpan(...)` deliberately
+  and end the span exactly once.
+- Do not use deprecated `Sentry.setMeasurement()` for new migrations; use span
+  attributes.
+
+Before:
+
+```javascript
+const startedAt = performance.now();
+const result = await exportReport({ format });
+
+Sentry.logger.info("report_export_completed", {
+  report_id: result.reportId,
+  "result.status": "completed",
+  duration_ms: performance.now() - startedAt,
+});
+```
+
+After:
+
+```javascript
+const result = await Sentry.startSpan(
+  { name: "Export report", op: "report.export" },
+  () => exportReport({ format }),
+);
+
+Sentry.logger.info("report_export_completed", {
+  report_id: result.reportId,
+  "result.status": "completed",
+});
+```
 
 ## Phase 3: Boundary Instrumentation
 
@@ -196,7 +239,7 @@ Task Progress:
 - [ ] Enforce formatting: required message, dot-notation keys, snake_case segments
 - [ ] Keep logger attrs inline, flat, and scalar (no spread/computed/nested values)
 - [ ] Follow Phase 2 identity policy (`setUser` + app user metadata placement)
-- [ ] Follow Phase 2 trace/timing policy (use Sentry tracing)
+- [ ] Follow Phase 2 trace/timing policy (replace useful timing log fields with spans)
 - [ ] Apply level and sampling policy
 - [ ] Add redaction/drop logic for sensitive data
 - [ ] Validate logs answer what happened, to whom, and why

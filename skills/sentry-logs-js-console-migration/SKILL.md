@@ -46,7 +46,8 @@ Assets:
   `enableLogs: true`.
 - Prefer tracing for correlation; avoid bespoke `request_id` schemes.
 - Do not add timing, duration, or latency log attributes; traces/spans own
-  timing data.
+  timing data. Replace useful existing timing log fields with span attributes or
+  custom spans instead of dropping the signal.
 - Preserve existing production logger libraries such as `pino`, `winston`, or
   `consola`. Do not replace them with `Sentry.logger`; keep their call syntax
   and configure the appropriate Sentry integration/transport so their structured
@@ -109,11 +110,17 @@ message summary, logger family, Sentry capture path, and target action:
 
 - `delete`
 - `move_to_scope`
+- `move_to_span`
 - `merge_into_wide`
 - `keep`
 
 Group hits into operation bundles before deciding what to emit. Deliver counts
 by file/rule/action.
+
+Inventory timing fields separately: `duration`, `duration_ms`, `elapsed`,
+`elapsed_ms`, `latency`, `latency_ms`, `start_time`, `end_time`,
+`execution_time_ms`, and similar names. Classify useful timing signals as
+`move_to_span`, not as log attributes.
 
 For existing logger libraries, inventory does not mean replacement. Confirm the
 logger is captured by Sentry (`pinoIntegration`, Winston transport, Consola
@@ -152,6 +159,54 @@ page/user context and prefer `withScope` for action-only context. Avoid
 `Sentry.getCurrentScope()` for new context; use `withScope` when context should
 apply only inside a callback.
 
+## Timing Data and Span Migration
+
+When an existing log records timing, remove the timing attribute from the log
+and preserve the performance signal in tracing. Confirm tracing is configured
+before adding custom spans.
+
+- If the code already runs inside the operation span, add useful numeric facts
+  to the active span with `Sentry.getActiveSpan()?.setAttribute(...)` or
+  `setAttributes(...)`.
+- If the code manually measures a distinct operation with `Date.now()`,
+  `performance.now()`, or similar start/end variables, replace that measurement
+  with `Sentry.startSpan(...)` around the operation.
+- If callback-style instrumentation cannot fit the code shape, use
+  `Sentry.startSpanManual(...)` or `Sentry.startInactiveSpan(...)` deliberately
+  and end the span exactly once.
+- Do not migrate timing fields to `Sentry.setMeasurement()`; use span attributes
+  instead.
+
+Retained logger libraries follow the same rule: keep the native logger call for
+the operation outcome, but move `duration_ms`, `latency_ms`, and similar fields
+to the span.
+
+Before:
+
+```javascript
+const startedAt = Date.now();
+const order = await chargeCard(cart);
+
+logger.info(
+  { "order.id": order.id, duration_ms: Date.now() - startedAt },
+  "Checkout completed",
+);
+```
+
+After:
+
+```javascript
+const order = await Sentry.startSpan(
+  { name: "Charge card", op: "payment.charge" },
+  () => chargeCard(cart),
+);
+
+logger.info(
+  { "order.id": order.id, "result.status": "completed" },
+  "Checkout completed",
+);
+```
+
 ## Wide-Event Ownership
 
 Choose exactly one owner for each operation result:
@@ -175,6 +230,7 @@ attention.
 Classify each log relative to its operation bundle:
 
 - broad context -> `move_to_scope`
+- timing, duration, latency, or elapsed fields -> `move_to_span`
 - larger-operation step -> `merge_into_wide` by moving reusable context to scope
   or preserving a local value for the final inline log attributes
 - independently searchable signal -> `keep`
@@ -200,8 +256,9 @@ Design the operation event:
 1. Move broad route/job/user context onto scope.
 2. Use `withScope` for branch/dependency context inherited by only part of the
    operation.
-3. Emit one final completion/failure log with inline flat attributes.
-4. Keep separate warn/error logs only when they are standalone signals.
+3. Move timing and duration facts into spans or span attributes.
+4. Emit one final completion/failure log with inline flat attributes.
+5. Keep separate warn/error logs only when they are standalone signals.
 
 ```javascript
 Sentry.setUser({ id: user.id });
@@ -318,6 +375,9 @@ Final checks:
 - Existing logger libraries such as `pino` or `winston` remain in place when
   present, have Sentry capture configured, and use flat scalar structured
   attributes with stable messages.
+- Existing timing, duration, latency, and elapsed log attributes were removed
+  from logs and replaced with custom spans or span attributes; no
+  `Sentry.setMeasurement()` migration target was introduced.
 - Migrated operation bundles emit one named boundary-owned wide event, with
   broad context set on scope before downstream logs/errors.
 - Temporary bridges removed or teardown owner/date tracked; durable integrations
